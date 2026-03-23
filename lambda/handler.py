@@ -2,6 +2,7 @@ import socket
 import ssl
 import json
 import os
+import boto3
 
 REGION = os.environ.get("AWS_REGION", "eu-west-1")
 
@@ -92,6 +93,60 @@ def test_env() -> dict:
     return env_info
 
 
+def list_sagemaker_model_packages() -> None:
+    print()
+    print("=" * 60)
+    print("5. SAGEMAKER MODEL PACKAGE GROUPS & MODEL PACKAGES")
+    print("=" * 60)
+    sm = boto3.client("sagemaker", region_name=REGION)
+
+    try:
+        paginator = sm.get_paginator("list_model_package_groups")
+        groups = []
+        for page in paginator.paginate():
+            groups.extend(page.get("ModelPackageGroupSummaryList", []))
+
+        print(f"Found {len(groups)} model package group(s)\n")
+
+        for group in groups:
+            group_name = group["ModelPackageGroupName"]
+            print(f"--- Group: {group_name} ---")
+
+            try:
+                desc = sm.describe_model_package_group(ModelPackageGroupName=group_name)
+                desc.pop("ResponseMetadata", None)
+                print(json.dumps(desc, indent=2, default=str))
+            except Exception as e:
+                print(f"  describe_model_package_group FAILED: {e}")
+
+            try:
+                pkg_paginator = sm.get_paginator("list_model_packages")
+                packages = []
+                for page in pkg_paginator.paginate(ModelPackageGroupName=group_name):
+                    packages.extend(page.get("ModelPackageSummaryList", []))
+
+                print(f"  Model packages in '{group_name}': {len(packages)}")
+
+                for pkg in packages:
+                    pkg_arn = pkg["ModelPackageArn"]
+                    pkg_version = pkg.get("ModelPackageVersion", "N/A")
+                    print(f"\n  -- Package version {pkg_version} ({pkg_arn}) --")
+                    try:
+                        pkg_desc = sm.describe_model_package(ModelPackageName=pkg_arn)
+                        pkg_desc.pop("ResponseMetadata", None)
+                        print(json.dumps(pkg_desc, indent=4, default=str))
+                    except Exception as e:
+                        print(f"    describe_model_package FAILED: {e}")
+
+            except Exception as e:
+                print(f"  list_model_packages FAILED: {e}")
+
+            print()
+
+    except Exception as e:
+        print(f"list_model_package_groups FAILED: {e}")
+
+
 def lambda_handler(event, context):
     results = {name: {} for name in ENDPOINTS}
 
@@ -99,6 +154,7 @@ def lambda_handler(event, context):
     test_tcp(results)
     test_tls(results)
     env_info = test_env()
+    list_sagemaker_model_packages()
 
     return {
         "statusCode": 200,
