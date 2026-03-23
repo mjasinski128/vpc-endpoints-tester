@@ -1,0 +1,16 @@
+[project]
+name = "vpc-endpoints-tester"
+version = "0.1.0"
+description = "CDK project to test VPC endpoints via Lambda"
+authors = []
+readme = "README.md"
+requires-python = "^3.12"
+dependencies = [
+    "aws-cdk-lib (>=2.170.0)",
+    "constructs (>=10.0.0,<11.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
