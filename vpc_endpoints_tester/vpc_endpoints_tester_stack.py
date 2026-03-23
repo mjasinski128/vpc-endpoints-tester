@@ -49,6 +49,18 @@ class VpcEndpointsTesterStack(Stack):
             ],
         )
 
+        role.add_to_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "sagemaker:ListModelPackageGroups",
+                    "sagemaker:DescribeModelPackageGroup",
+                    "sagemaker:ListModelPackages",
+                    "sagemaker:DescribeModelPackage",
+                ],
+                resources=["*"],
+            )
+        )
+
         # Lambda function
         fn = lambda_.Function(
             self,
