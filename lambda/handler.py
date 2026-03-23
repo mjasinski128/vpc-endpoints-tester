@@ -93,6 +93,24 @@ def test_env() -> dict:
     return env_info
 
 
+def resolve_hostname(hostname: str) -> None:
+    print()
+    print("=" * 60)
+    print("6. HOSTNAME RESOLUTION")
+    print(f"   {hostname}")
+    print("=" * 60)
+    try:
+        results = socket.getaddrinfo(hostname, None)
+        ips = sorted({r[4][0] for r in results})
+        for ip in ips:
+            private = any(ip.startswith(p) for p in ["10.", "172.", "192.168."])
+            status = "PRIVATE" if private else "PUBLIC"
+            emoji = "✅" if private else "⚠️"
+            print(f"  {ip:40} {emoji} {status}")
+    except Exception as e:
+        print(f"  FAILED - {e}")
+
+
 def list_sagemaker_model_packages(model_package_group_arn: str = None) -> None:
     print()
     print("=" * 60)
@@ -162,6 +180,9 @@ def lambda_handler(event, context):
     list_sagemaker_model_packages(
         model_package_group_arn=event.get("model_package_group_arn")
     )
+
+    if hostname := event.get("hostname"):
+        resolve_hostname(hostname)
 
     return {
         "statusCode": 200,
