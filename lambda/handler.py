@@ -93,10 +93,24 @@ def test_env() -> dict:
     return env_info
 
 
+def get_caller_identity() -> None:
+    print()
+    print("=" * 60)
+    print("6. CALLER IDENTITY (STS)")
+    print("=" * 60)
+    try:
+        sts = boto3.client("sts", region_name=REGION)
+        identity = sts.get_caller_identity()
+        identity.pop("ResponseMetadata", None)
+        print(json.dumps(identity, indent=2, default=str))
+    except Exception as e:
+        print(f"get_caller_identity FAILED: {e}")
+
+
 def resolve_hostname(hostname: str) -> None:
     print()
     print("=" * 60)
-    print("6. HOSTNAME RESOLUTION")
+    print("7. HOSTNAME RESOLUTION")
     print(f"   {hostname}")
     print("=" * 60)
     try:
@@ -177,6 +191,7 @@ def lambda_handler(event, context):
     test_tcp(results)
     test_tls(results)
     env_info = test_env()
+    get_caller_identity()
     list_sagemaker_model_packages(
         model_package_group_arn=event.get("model_package_group_arn")
     )
