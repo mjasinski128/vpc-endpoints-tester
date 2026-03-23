@@ -2,6 +2,8 @@ import socket
 import ssl
 import json
 import os
+import urllib.request
+import urllib.error
 import boto3
 
 REGION = os.environ.get("AWS_REGION", "eu-west-1")
@@ -93,10 +95,81 @@ def test_env() -> dict:
     return env_info
 
 
+def debug_https_endpoint(url: str) -> None:
+    print()
+    print("=" * 60)
+    print("6. HTTPS ENDPOINT DEBUG")
+    print(f"   {url}")
+    print("=" * 60)
+
+    # --- DNS ---
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    port = parsed.port or 443
+    try:
+        ips = sorted({r[4][0] for r in socket.getaddrinfo(hostname, port)})
+        print(f"DNS resolved to: {', '.join(ips)}")
+    except Exception as e:
+        print(f"DNS resolution FAILED: {e}")
+        return
+
+    # --- TCP ---
+    try:
+        sock = socket.create_connection((hostname, port), timeout=5)
+        sock.close()
+        print(f"TCP :{port}        ✅ connected")
+    except Exception as e:
+        print(f"TCP :{port}        ❌ FAILED - {e}")
+        return
+
+    # --- TLS ---
+    try:
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
+            s.settimeout(5)
+            s.connect((hostname, port))
+            cert = s.getpeercert()
+            subject = dict(x[0] for x in cert.get("subject", []))
+            issuer = dict(x[0] for x in cert.get("issuer", []))
+            print(f"TLS               ✅ OK")
+            print(f"  cert CN:         {subject.get('commonName', 'N/A')}")
+            print(f"  cert issuer:     {issuer.get('organizationName', 'N/A')}")
+            print(f"  cert notAfter:   {cert.get('notAfter', 'N/A')}")
+    except Exception as e:
+        print(f"TLS               ❌ FAILED - {e}")
+        return
+
+    # --- HTTP ---
+    print()
+    print("HTTP request:")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "vpc-endpoints-tester/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.status
+            reason = resp.reason
+            headers = dict(resp.headers)
+            body_bytes = resp.read(512)
+            body_preview = body_bytes.decode("utf-8", errors="replace")
+            print(f"  status:  {status} {reason}")
+            print(f"  headers: {json.dumps(headers, indent=4)}")
+            print(f"  body (first 512 bytes):\n{body_preview}")
+    except urllib.error.HTTPError as e:
+        print(f"  status:  {e.code} {e.reason}  ⚠️  (HTTP error, connection itself succeeded)")
+        print(f"  headers: {json.dumps(dict(e.headers), indent=4)}")
+        try:
+            body_preview = e.read(512).decode("utf-8", errors="replace")
+            print(f"  body (first 512 bytes):\n{body_preview}")
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"  ❌ FAILED - {e}")
+
+
 def get_caller_identity() -> None:
     print()
     print("=" * 60)
-    print("6. CALLER IDENTITY (STS)")
+    print("7. CALLER IDENTITY (STS)")
     print("=" * 60)
     try:
         sts = boto3.client("sts", region_name=REGION)
@@ -110,7 +183,7 @@ def get_caller_identity() -> None:
 def resolve_hostname(hostname: str) -> None:
     print()
     print("=" * 60)
-    print("7. HOSTNAME RESOLUTION")
+    print("8. HOSTNAME RESOLUTION")
     print(f"   {hostname}")
     print("=" * 60)
     try:
@@ -192,6 +265,10 @@ def lambda_handler(event, context):
     test_tls(results)
     env_info = test_env()
     get_caller_identity()
+
+    if https_url := event.get("https_url"):
+        debug_https_endpoint(https_url)
+
     list_sagemaker_model_packages(
         model_package_group_arn=event.get("model_package_group_arn")
     )
