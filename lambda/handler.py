@@ -93,20 +93,25 @@ def test_env() -> dict:
     return env_info
 
 
-def list_sagemaker_model_packages() -> None:
+def list_sagemaker_model_packages(model_package_group_arn: str = None) -> None:
     print()
     print("=" * 60)
     print("5. SAGEMAKER MODEL PACKAGE GROUPS & MODEL PACKAGES")
+    if model_package_group_arn:
+        print(f"   (using provided group ARN: {model_package_group_arn})")
     print("=" * 60)
     sm = boto3.client("sagemaker", region_name=REGION)
 
     try:
-        paginator = sm.get_paginator("list_model_package_groups")
-        groups = []
-        for page in paginator.paginate():
-            groups.extend(page.get("ModelPackageGroupSummaryList", []))
-
-        print(f"Found {len(groups)} model package group(s)\n")
+        if model_package_group_arn:
+            groups = [{"ModelPackageGroupName": model_package_group_arn}]
+            print(f"Using provided group ARN (skipping list)\n")
+        else:
+            paginator = sm.get_paginator("list_model_package_groups")
+            groups = []
+            for page in paginator.paginate():
+                groups.extend(page.get("ModelPackageGroupSummaryList", []))
+            print(f"Found {len(groups)} model package group(s)\n")
 
         for group in groups:
             group_name = group["ModelPackageGroupName"]
@@ -154,7 +159,9 @@ def lambda_handler(event, context):
     test_tcp(results)
     test_tls(results)
     env_info = test_env()
-    list_sagemaker_model_packages()
+    list_sagemaker_model_packages(
+        model_package_group_arn=event.get("model_package_group_arn")
+    )
 
     return {
         "statusCode": 200,
